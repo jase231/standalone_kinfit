@@ -75,7 +75,7 @@ if __name__ == "__main__":
     )
     kinFitter = ROOT.DKinFitter(kinFitUtils)
 
-    full_run = True
+    full_run = False
 
     # full stats box
     ROOT.gStyle.SetOptStat(111111)
@@ -90,7 +90,7 @@ if __name__ == "__main__":
 
     # loop over each entry
     for i, entry in enumerate(tree):
-        if not full_run and i > 10:
+        if not full_run and i > 400:
             break
 
         kinFitter.Reset_NewEvent()
@@ -195,13 +195,24 @@ if __name__ == "__main__":
                 refit_kp_px = refit_kp_p4.Px()
                 px_diff = old_kp_px - refit_kp_px
                 kin_hist.Fill(px_diff)
-        
+
+        problematic_fits = ROOT.std.vector[ROOT.DKinFitStatus]()
+
         # check for severity of difference
         if abs(diff) > 2000:
-            
+
             if chisq_ndf < 200 or new_chisq_ndf < 200:
-                print(f"Extreme chisq difference for event {entry.event}: Old {chisq_ndf}, New {new_chisq_ndf}")
+                # print(f"Extreme chisq difference for event {entry.event}: Old {chisq_ndf}, New {new_chisq_ndf}")
+                problematic_fits.push_back(kinFitter.Get_KinFitStatus())
             outlier_2d.Fill(chisq_ndf, new_chisq_ndf)
+
+        if not success:
+            print(f"Event {entry.event}: Fit Success: {success}, New chisq_ndf: {kinFitter.Get_ChiSq() / ndf}, Old chisq_ndf: {chisq_ndf}")
+            print("--- KMinus_ErrMatrix ---")
+            entry.KMinus_ErrMatrix.Print()
+            print("--- KPlus_ErrMatrix ---")
+            entry.KPlus_ErrMatrix.Print()
+
 
         #print(
         #    f"Event {entry.event}: Fit Success: {success}, New chisq_ndf: {kinFitter.Get_ChiSq() / ndf}, Old chisq_ndf: {chisq_ndf}"
@@ -212,6 +223,6 @@ if __name__ == "__main__":
 
     kin_hist.Draw()
     c1.Print("plots.pdf", "pdf")
-    
+
     outlier_2d.Draw()
     c1.Print("plots.pdf)", "pdf")
