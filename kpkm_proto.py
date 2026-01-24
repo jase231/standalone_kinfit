@@ -102,10 +102,8 @@ if __name__ == "__main__":
         beam_p4 = entry.beam_p4_meas
         beam_x4 = entry.beam_x4_meas
 
-        # use a zeroed matrix for beam covariance
-        beam_cov_demo = ROOT.TMatrixFSym(7)
-        beam_cov_demo.Zero()
-        beam_cov = to_shared(beam_cov_demo)
+        # use actual beam covariance matrix
+        beam_cov = to_shared(entry.Beam_ErrMatrix)
 
         # Make_BeamParticle(pid, charge, mass, vertex, momentum, covariance)
         beam_photon = ROOT.Gamma
