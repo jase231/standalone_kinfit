@@ -280,4 +280,3 @@ if __name__ == "__main__":
 
     outlier_2d.Draw()
     c1.Print("plots.pdf)", "pdf")
-    print(succ_count)
