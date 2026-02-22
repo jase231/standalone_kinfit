@@ -65,7 +65,7 @@ if __name__ == "__main__":
     )
 
     # get the flat tree
-    file = ROOT.TFile("/d/grid15/serwe/kinfitter/kpkm/kpkm_flat_fsym.root")
+    file = ROOT.TFile("/d/grid15/serwe/kinfitter/kpkm/kpkm_w_pl.root")
     tree = file.Get("kpkm")
 
     # initialize standalone fitter utils with the magnetic field map
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     )
     kinFitter = ROOT.DKinFitter(kinFitUtils)
 
-    full_run = False
+    full_run = True
 
     # full stats box
     ROOT.gStyle.SetOptStat(111111)
@@ -114,6 +114,9 @@ if __name__ == "__main__":
         # Make_TargetParticle(pid, charge, mass)
         p = ROOT.Proton
         target_part = kinFitUtils.Make_TargetParticle(ROOT.PDGtype(p), ROOT.ParticleCharge(p), ROOT.ParticleMass(p))
+        
+        # calculate path length
+        
 
         # final state kp
         kp_p4 = entry.kp_p4_meas
@@ -121,7 +124,7 @@ if __name__ == "__main__":
         kp_cov = to_shared(entry.KPlus_ErrMatrix)
         kp = ROOT.KPlus
         kp_part = kinFitUtils.Make_DetectedParticle(
-            ROOT.PDGtype(kp), ROOT.ParticleCharge(kp), ROOT.ParticleMass(kp), kp_x4, kp_p4.Vect(), kp_p4.M(), kp_cov
+            ROOT.PDGtype(kp), ROOT.ParticleCharge(kp), ROOT.ParticleMass(kp), kp_x4, kp_p4.Vect(), entry.kp_path_length, kp_cov
         )
 
         # final state km
@@ -130,7 +133,7 @@ if __name__ == "__main__":
         km_cov = to_shared(entry.KMinus_ErrMatrix)
         km = ROOT.KMinus
         km_part = kinFitUtils.Make_DetectedParticle(
-            ROOT.PDGtype(km), ROOT.ParticleCharge(km), ROOT.ParticleMass(km), km_x4, km_p4.Vect(), km_p4.M(), km_cov
+            ROOT.PDGtype(km), ROOT.ParticleCharge(km), ROOT.ParticleMass(km), km_x4, km_p4.Vect(), entry.km_path_length, km_cov
         )
 
         # final state recoil proton
@@ -139,7 +142,7 @@ if __name__ == "__main__":
         p_cov = to_shared(entry.Proton_ErrMatrix)
         p = ROOT.Proton
         p_part = kinFitUtils.Make_DetectedParticle(
-            ROOT.PDGtype(p), ROOT.ParticleCharge(p), ROOT.ParticleMass(p), p_x4, p_p4.Vect(), p_p4.M(), p_cov
+            ROOT.PDGtype(p), ROOT.ParticleCharge(p), ROOT.ParticleMass(p), p_x4, p_p4.Vect(), entry.p_path_length, p_cov
         )
 
         # create set of the initial particles for momentum constraint

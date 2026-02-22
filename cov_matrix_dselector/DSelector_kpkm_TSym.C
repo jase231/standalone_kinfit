@@ -100,8 +100,19 @@ void DSelector_kpkm_TSym::Init(TTree *locTree)
 	*/
 
 	/************************** EXAMPLE USER INITIALIZATION: CUSTOM OUTPUT BRANCHES - FLAT TREE *************************/
+        // branches for path_length
+        dFlatTreeInterface->Create_Branch_Fundamental<Float_t>("kp_path_length");
+        dFlatTreeInterface->Create_Branch_Fundamental<Float_t>("km_path_length");
+        dFlatTreeInterface->Create_Branch_Fundamental<Float_t>("p_path_length");
+    
 
-    // 2. Create the array branches for the covariance matrices
+
+      dTreeInterface->Register_GetEntryBranch("ComboBeam__ErrMatrix");
+      dTreeInterface->Register_GetEntryBranch("KPlus__ErrMatrix");
+      dTreeInterface->Register_GetEntryBranch("KMinus__ErrMatrix");
+      dTreeInterface->Register_GetEntryBranch("Proton__ErrMatrix");
+	
+    // Create the array branches for the covariance matrices
     // The second argument must match the name of the size branch created above
     dFlatTreeInterface->Create_Branch_NoSplitTObject<TMatrixFSym>("Beam_ErrMatrix");
     dFlatTreeInterface->Create_Branch_NoSplitTObject<TMatrixFSym>("KPlus_ErrMatrix");
@@ -249,8 +260,20 @@ Bool_t DSelector_kpkm_TSym::Process(Long64_t locEntry)
 		TLorentzVector locKPlusP4_Measured = dKPlusWrapper->Get_P4_Measured();
 		TLorentzVector locKMinusP4_Measured = dKMinusWrapper->Get_P4_Measured();
 		TLorentzVector locProtonP4_Measured = dProtonWrapper->Get_P4_Measured();
+               
 
-		/********************************************* GET COMBO RF TIMING INFO *****************************************/
+                /** GET TIMING FOR PathLength **/
+                Float_t beam_time = dKPlusWrapper->Get_X4_Measured().T(); 
+                // each charged particle's hit times
+                Float_t kp_hit_time = dKPlusWrapper->Get_HitTime();
+                Float_t km_hit_time = dKMinusWrapper->Get_HitTime();
+                Float_t p_hit_time = dProtonWrapper->Get_HitTime();
+	        // each charged particle's beta time
+                Float_t kp_beta = dKPlusWrapper->Get_Beta_Timing_Measured();
+                Float_t km_beta = dKMinusWrapper->Get_Beta_Timing_Measured();
+                Float_t p_beta = dProtonWrapper->Get_Beta_Timing_Measured();
+
+                /********************************************* GET COMBO RF TIMING INFO *****************************************/
 
 		TLorentzVector locBeamX4_Measured = dComboBeamWrapper->Get_X4_Measured();
 		// Double_t locBunchPeriod = dAnalysisUtilities.Get_BeamBunchPeriod(Get_RunNumber());
@@ -353,7 +376,16 @@ Bool_t DSelector_kpkm_TSym::Process(Long64_t locEntry)
 		//}
 
 		/****************************************** FILL FLAT TREE (IF DESIRED) ******************************************/
-		// FILL FLAT TREE WITH COVARIANCE MATRICES
+		// FILL FLAT TREE WITH PATH LENGTH]
+                auto calc_pl = [](Float_t beta, Float_t ht, Float_t rft) -> Float_t {
+                  return beta*(29.9792458*(ht-rft));
+                };
+                dFlatTreeInterface->Fill_Fundamental<Float_t>("kp_path_length", calc_pl(kp_beta, kp_hit_time, beam_time));
+                dFlatTreeInterface->Fill_Fundamental<Float_t>("km_path_length", calc_pl(km_beta, km_hit_time, beam_time));
+                dFlatTreeInterface->Fill_Fundamental<Float_t>("p_path_length", calc_pl(p_beta, p_hit_time, beam_time));
+
+
+                // FILL FLAT TREE WITH COVARIANCE MATRICES
 		// get double pointers to the current combo's FSyms
         TMatrixFSym** locBeamPtr = dFlatTreeInterface->Get_PointerToPointerTo_TObject<TMatrixFSym>("Beam_ErrMatrix");
         TMatrixFSym** locKPlusPtr = dFlatTreeInterface->Get_PointerToPointerTo_TObject<TMatrixFSym>("KPlus_ErrMatrix");
@@ -380,11 +412,11 @@ Bool_t DSelector_kpkm_TSym::Process(Long64_t locEntry)
         for(Int_t k = 0; k < 28; ++k)
         {
             // retrieve from tree in packed form
-            Float_t valBeam   = dTreeInterface->Get_Fundamental<Float_t>("ComboBeam__ErrMatrix", k);
-            Float_t valKPlus  = dTreeInterface->Get_Fundamental<Float_t>("KPlus__ErrMatrix", k);
-            Float_t valKMinus = dTreeInterface->Get_Fundamental<Float_t>("KMinus__ErrMatrix", k);
-            Float_t valProton = dTreeInterface->Get_Fundamental<Float_t>("Proton__ErrMatrix", k);
 
+	    Float_t valBeam   = dTreeInterface->Get_Fundamental<Float_t>("ComboBeam__ErrMatrix", k);
+	    Float_t valKPlus  = dTreeInterface->Get_Fundamental<Float_t>("KPlus__ErrMatrix", k);
+	    Float_t valKMinus = dTreeInterface->Get_Fundamental<Float_t>("KMinus__ErrMatrix", k);
+	    Float_t valProton = dTreeInterface->Get_Fundamental<Float_t>("Proton__ErrMatrix", k);
             // set the matrices' values along with sym complement
             ComboBeam_EM(i, j) = valBeam;
             ComboBeam_EM(j, i) = valBeam;
