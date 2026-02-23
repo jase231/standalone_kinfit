@@ -1,9 +1,82 @@
 #!/usr/bin/env python3
 
+import ctypes as _ctypes
+import io
 import os
 import subprocess
+import sys
 import time
 
+
+# ---------------------------------------------------------------------------
+# I/O synchronisation: make Python's stdout/stderr fully unbuffered so that
+# every print() reaches the OS kernel immediately, without sitting in either
+# the TextIOWrapper or BufferedWriter layers.  This prevents ROOT's C-level
+# stdio output from overtaking (or being overtaken by) Python output.
+# ---------------------------------------------------------------------------
+def _make_unbuffered(stream):
+    """
+    Rewrap *stream* so that writes bypass all Python-level buffering.
+    Uses io.FileIO(fd, closefd=False) as the raw layer, giving buffering=0,
+    then wraps it in a write-through TextIOWrapper.
+    Falls back silently to the original stream if anything goes wrong
+    (e.g. the stream is not backed by a real file descriptor).
+    """
+    try:
+        fd = stream.fileno()
+        enc = getattr(stream, "encoding", None) or "utf-8"
+        errs = getattr(stream, "errors", None) or "replace"
+        raw = io.FileIO(fd, mode="w", closefd=False)
+        return io.TextIOWrapper(
+            raw, encoding=enc, errors=errs, line_buffering=False, write_through=True
+        )
+    except Exception:
+        return stream
+
+
+sys.stdout = _make_unbuffered(sys.stdout)
+sys.stderr = _make_unbuffered(sys.stderr)
+
+# Load libc so we can call fflush(NULL) to drain C-level stdio buffers
+# (ROOT's Print() / debug output goes through C stdio, not Python I/O).
+try:
+    _libc = _ctypes.CDLL(None)
+except Exception:
+    _libc = None
+
+
+def flush_all():
+    """
+    Flush every layer of buffering between Python and the terminal:
+      1. Python TextIOWrapper (already write-through, but be explicit)
+      2. Python stderr
+      3. All open C stdio streams via fflush(NULL)
+    Call this *before* and *after* any ROOT method that writes to
+    stdout/stderr so that Python and ROOT output appear in the correct order.
+    """
+    sys.stdout.flush()
+    sys.stderr.flush()
+    if _libc is not None:
+        try:
+            _libc.fflush(None)  # fflush(NULL) → flush every C stdio stream
+        except Exception:
+            pass
+
+
+def root_print(obj):
+    """
+    Call obj.Print() with full stdio synchronisation on both sides so that
+    the C++ output lands in its correct position relative to surrounding
+    Python print() calls, regardless of event volume.
+    """
+    flush_all()
+    obj.Print()
+    flush_all()
+
+
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
 
 def source_bash_script(script_path):
     """
@@ -229,7 +302,7 @@ if __name__ == "__main__":
             f"({beam_x4.T():.6f}, {beam_x4.X():.6f}, {beam_x4.Y():.6f}, {beam_x4.Z():.6f})"
         )
         print("  --- Beam_ErrMatrix ---")
-        entry.Beam_ErrMatrix.Print()
+        root_print(entry.Beam_ErrMatrix)
         print(
             f"  K+    p4 (E, px, py, pz): "
             f"({kp_p4.E():.6f}, {kp_p4.Px():.6f}, {kp_p4.Py():.6f}, {kp_p4.Pz():.6f})"
@@ -239,7 +312,7 @@ if __name__ == "__main__":
             f"({kp_x4.T():.6f}, {kp_x4.X():.6f}, {kp_x4.Y():.6f}, {kp_x4.Z():.6f})"
         )
         print("  --- KPlus_ErrMatrix ---")
-        entry.KPlus_ErrMatrix.Print()
+        root_print(entry.KPlus_ErrMatrix)
         print(
             f"  K-    p4 (E, px, py, pz): "
             f"({km_p4.E():.6f}, {km_p4.Px():.6f}, {km_p4.Py():.6f}, {km_p4.Pz():.6f})"
@@ -249,7 +322,7 @@ if __name__ == "__main__":
             f"({km_x4.T():.6f}, {km_x4.X():.6f}, {km_x4.Y():.6f}, {km_x4.Z():.6f})"
         )
         print("  --- KMinus_ErrMatrix ---")
-        entry.KMinus_ErrMatrix.Print()
+        root_print(entry.KMinus_ErrMatrix)
         print(
             f"  p     p4 (E, px, py, pz): "
             f"({p_p4.E():.6f}, {p_p4.Px():.6f}, {p_p4.Py():.6f}, {p_p4.Pz():.6f})"
@@ -259,10 +332,13 @@ if __name__ == "__main__":
             f"({p_x4.T():.6f}, {p_x4.X():.6f}, {p_x4.Y():.6f}, {p_x4.Z():.6f})"
         )
         print("  --- Proton_ErrMatrix ---")
-        entry.Proton_ErrMatrix.Print()
+        root_print(entry.Proton_ErrMatrix)
         print(f"{sep}\n")
 
+        # Drain C stdio before the fitter runs (it may produce debug output)
+        flush_all()
         success = kinFitter.Fit_Reaction()
+        flush_all()
 
         if not success:
             print(
@@ -270,9 +346,9 @@ if __name__ == "__main__":
                 f" New chisq_ndf: {kinFitter.Get_ChiSq()}, Old chisq_ndf: {chisq_ndf}"
             )
             print("--- KMinus_ErrMatrix ---")
-            entry.KMinus_ErrMatrix.Print()
+            root_print(entry.KMinus_ErrMatrix)
             print("--- KPlus_ErrMatrix ---")
-            entry.KPlus_ErrMatrix.Print()
+            root_print(entry.KPlus_ErrMatrix)
 
         # only fill histograms for converged fits when the toggle is enabled
         if not plot_converged_only or success:
