@@ -141,7 +141,9 @@ if __name__ == "__main__":
 
     kinFitter.Set_DebugLevel(40)
 
-    full_run = True
+    # only fit combos belonging to this event
+    TARGET_EVENT_ID = 937260
+
     # True: histograms are only filled for events where the fit converged.
     # False: all events are included regardless of convergence.
     plot_converged_only = False
@@ -179,8 +181,9 @@ if __name__ == "__main__":
 
     # loop over each entry
     for i, entry in enumerate(tree):
-        if not full_run and i > 400:
-            break
+        # skip combos that do not belong to the target event
+        if entry.event != TARGET_EVENT_ID:
+            continue
 
         kinFitter.Reset_NewEvent()
 
